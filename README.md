@@ -67,9 +67,9 @@ Default value = 5e6
 
 ##### --pTs
 
-The p-value thresholds used to derive the risk scores. 
+The p-value thresholds used to derive the risk scores. There must not be spaces between the values.
 
-Default value = c(5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6)
+Default value = '5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6'
 
 ##### --prune_mhc
 

@@ -14,13 +14,15 @@ make_option("--prune_thresh", action="store", default=0.9, type='numeric',
 		help="r2 threshold for pruning [optional]"),
 make_option("--cor_window", action="store", default=5e6, type='numeric',
 		help="Window for deriving pruning blocks in bases[optional]"),
-make_option("--pTs", action="store", default=c(5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6), type='numeric',
+make_option("--pTs", action="store", default='5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6', type='character',
 		help="Window for deriving pruning blocks in bases[optional]"),
 make_option("--prune_mhc", action="store", default=T, type='logical',
 		help="Retain only the most significant gene within the MHC region [optional]")
 )
 
 opt = parse_args(OptionParser(option_list=option_list))
+
+opt$pTs<- as.numeric(unlist(strsplit(opt$pTs,',')))
 
 sink(file = paste(opt$output,'.log',sep=''), append = F)
 cat(
@@ -88,6 +90,19 @@ sink()
 sink(file = paste(opt$output,'.log',sep=''), append = T)
 cat('target_gene_exp contains', dim(AllGene)[1],'individuals and', dim(AllGene)[2],'features.\n')
 
+# Remove features with zero variance.
+var_all<-NULL
+for(i in 3:dim(AllGene)[2]){
+	var<-data.frame(column=i,
+					variance=var(AllGene[,i]))
+	var_all<-rbind(var_all,var)
+}
+
+var_all$column[var_all$variance == 0]
+AllGene<-AllGene[-var_all$column[var_all$variance == 0]]
+cat(length(var_all$column[var_all$variance == 0]),'features were removed due to zero variance.\n')
+
+# Find intersecting features.
 intersecting_genes<-intersect(TWAS$FILE, names(AllGene))
 
 cat(length(intersecting_genes), 'features are present in both twas_results and target_gene_exp.\n')
