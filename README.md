@@ -85,7 +85,7 @@ This is a log file containing general information on the time taken, any errors,
 ##### When using default settings:
 
 ```sh
-Rscript IRIS.V1.0.R \
+Rscript IFRisk.V1.0.R \
 	--twas_results ukbiobank-2017-1160-prePRS-fusion.tsv.GW \
 	--target_gene_exp CMC.BRAIN.RNASEQ_GeneX_all_MINI.csv \
 	--output demo
@@ -94,7 +94,7 @@ Rscript IRIS.V1.0.R \
 ##### When using specific p-value thresholds
 
 ```sh
-Rscript IRIS.V1.0.R \
+Rscript IFRisk.V1.0.R \
 	--twas_results ukbiobank-2017-1160-prePRS-fusion.tsv.GW \
 	--target_gene_exp CMC.BRAIN.RNASEQ_GeneX_all_MINI.csv \
 	--pTs 1e-5,0.01,0.5 \
