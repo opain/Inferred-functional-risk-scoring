@@ -98,8 +98,7 @@ for(i in 3:dim(AllGene)[2]){
 	var_all<-rbind(var_all,var)
 }
 
-var_all$column[var_all$variance == 0]
-AllGene<-AllGene[-var_all$column[var_all$variance == 0]]
+AllGene<-AllGene[c(1,2,var_all$column[var_all$variance != 0])]
 cat(length(var_all$column[var_all$variance == 0]),'features were removed due to zero variance.\n')
 
 # Find intersecting features.
@@ -190,7 +189,7 @@ for(j in unique(TWAS_intersect_pT$Block)){
 	if(sum(TWAS_intersect_pT$Block == j) == 1){
 		TWAS_intersect_pT_pruned<-TWAS_intersect_pT[TWAS_intersect_pT$Block == j,]
 	} else {
-		cor_block<-WGCNA::cor(as.matrix(AllGene_intersect[(names(AllGene_intersect) %in% TWAS_intersect_pT$FILE[TWAS_intersect_pT$Block == j])]), method='pearson')
+		cor_block<-cor(as.matrix(AllGene_intersect[(names(AllGene_intersect) %in% TWAS_intersect_pT$FILE[TWAS_intersect_pT$Block == j])]), method='pearson')
 		cor_block_pruned<-cor_block
 		j<-1
 		while(TRUE){
@@ -199,7 +198,7 @@ for(j in unique(TWAS_intersect_pT$Block)){
 			if(max(tmp) < sqrt(opt$prune_thresh)){
 				break()
 			}
-			
+
 			if(sum(abs(tmp[,j]) > sqrt(opt$prune_thresh)) > 0){
 					cor_block_pruned<-cor_block_pruned[-j,-j]
 					j<-1
@@ -209,7 +208,7 @@ for(j in unique(TWAS_intersect_pT$Block)){
 		}
 		TWAS_intersect_pT_pruned<-TWAS_intersect_pT[(TWAS_intersect_pT$FILE %in% colnames(cor_block_pruned)),]
 	}
-	
+
 	TWAS_intersect_pT_pruned_all<-rbind(TWAS_intersect_pT_pruned_all, TWAS_intersect_pT_pruned)
 }
 
