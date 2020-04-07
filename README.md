@@ -17,9 +17,11 @@ As FUSION say, 'FUSION is a suite of tools for performing a transcriptome-wide (
   ```
 
 * Perform TWAS using FUSION:
-  * Instructions on how to perform a TWAS are available [here](http://gusevlab.org/projects/fusion/).
-
+  
+* Instructions on how to perform a TWAS are available [here](http://gusevlab.org/projects/fusion/).
+  
 * Feature (e.g. gene expression) predictions in target sample levels in the target sample:
+  
   * Instructions on how to impute gene expression levels are [here](http://gitlab.psycm.cf.ac.uk/mpmop/Predicting-TWAS-features/tree/master).
 
 
@@ -38,9 +40,9 @@ A file containing feature predictions in the target sample. This is output of th
 
 ### Optional parameters
 
-##### --prune_thresh
+##### --clump_thresh
 
-R-squared threshold for pruning genes. 
+R-squared threshold for clumping genes. Clumping will retain the most significant feature within each region. 
 
 Default value = 0.9
 
@@ -56,7 +58,7 @@ The p-value thresholds used to derive the risk scores. There must not be spaces 
 
 Default value = '5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6'
 
-##### --prune_mhc
+##### --clump_mhc
 
 Option to retain only the most significant feature within the MHC region. 
 
@@ -72,7 +74,7 @@ This comma delimited file will contain the feature-based risk scores in the targ
 
 ##### '-NGene_Table.csv'
 
-This comma delimited file will contain information on the number of genes surpassing the different p-value threshold specified before and after pruning.  
+This comma delimited file will contain information on the number of genes surpassing the different p-value threshold specified before and after clumping.  
 
 ##### '.log'
 
@@ -105,7 +107,7 @@ Rscript IFRisk.V1.0.R \
 
 ## Help
 
-This script was written by Dr Oliver Pain under the supervision of Dr Richard Anney whilst at the MRC Centre for Neuropsychiatric Genetics and Genomics, Cardiff University.
+This script was written by Dr Oliver Pain.
 
 If you have any questions or comments use the [google group](https://groups.google.com/forum/#!forum/twas-related-r-scripts).
 

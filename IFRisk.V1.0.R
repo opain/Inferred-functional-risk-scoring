@@ -10,17 +10,27 @@ make_option("--target_gene_exp", action="store", default=NA, type='character',
 		help="File containing gene expression values for the target sample [required]"),
 make_option("--output", action="store", default=NA, type='character',
 		help="Name of output files [required]"),
-make_option("--prune_thresh", action="store", default=0.9, type='numeric',
-		help="r2 threshold for pruning [optional]"),
+make_option("--clump_thresh", action="store", default=0.9, type='numeric',
+		help="r2 threshold for clumping [optional]"),
 make_option("--cor_window", action="store", default=5e6, type='numeric',
 		help="Window for deriving pruning blocks in bases[optional]"),
 make_option("--pTs", action="store", default='5e-1,1e-1,5e-2,1e-2,1e-3,1e-4,1e-5,1e-6', type='character',
 		help="Window for deriving pruning blocks in bases[optional]"),
-make_option("--prune_mhc", action="store", default=T, type='logical',
+make_option("--clump_mhc", action="store", default=T, type='logical',
 		help="Retain only the most significant gene within the MHC region [optional]")
 )
 
 opt = parse_args(OptionParser(option_list=option_list))
+
+tmp<-sub('.*/','',opt$output)
+opt$output_dir<-sub(paste0(tmp,'*.'),'',opt$output)
+
+if(file.exists(paste(opt$output,'-GeRS.csv',sep=''))){
+	cat('A file named',paste(opt$output,'-GeRS.csv',sep=''),'already exists.\n')
+	q()
+}
+
+system(paste0('mkdir -p ',opt$output_dir))
 
 opt$pTs<- as.numeric(unlist(strsplit(opt$pTs,',')))
 
@@ -34,11 +44,6 @@ cat(
 Options are:\n')
 print(opt)
 cat('Analysis started at',as.character(start.time),'\n')
-
-if(file.exists(paste(opt$output,'-GeRS.csv',sep=''))){
-	cat('A file named',paste(opt$output,'-GeRS.csv',sep=''),'already exists.\n')
-	q()
-}
 
 sink()
 sink("/dev/null")
@@ -112,9 +117,9 @@ TWAS_intersect<-TWAS[(TWAS$FILE %in% intersecting_genes),]
 rm(AllGene)
 rm(TWAS)
 
-if(opt$prune_mhc == T){
+if(opt$clump_mhc == T){
 ###########
-# Prune the MHC region to only contain the most significant gene in that region
+# Clump the MHC region to only contain the most significant gene in that region
 ###########
 
 TWAS_intersect_notMHC<-TWAS_intersect[!(TWAS_intersect$CHR == 6 & TWAS_intersect$P0 > 26e6 & TWAS_intersect$P1 < 34e6),]
@@ -124,7 +129,7 @@ TWAS_intersect<-rbind(TWAS_intersect_notMHC,TWAS_intersect_MHC_retain)
 
 AllGene_intersect<-AllGene_intersect[c('FID','IID',TWAS_intersect$FILE)]
 
-cat(dim(TWAS_intersect)[1], 'after pruning the MHC region to contain only the top gene.\n')
+cat(dim(TWAS_intersect)[1], 'after clumping the MHC region to contain only the top gene.\n')
 
 }
 
@@ -137,7 +142,7 @@ NGenes_table<-NULL
 for(i in 1:length(opt$pTs)){
 	NGenes<-data.frame(	pT=opt$pTs[i],
 						NGenes=sum(TWAS_intersect$TWAS.P < opt$pTs[i]),
-						NGenes_post_prune=NA)
+						NGenes_post_clump=NA)
 	NGenes_table<-rbind(NGenes_table,NGenes)
 }
 
@@ -160,71 +165,98 @@ if(i == 1){
 
 cat('The features were be separated into',length(unique(TWAS_intersect$Block)),'blocks.\n')
 
-########
-# Weight the gene expression in each individuals by TWAS.Z
-########
+###
+# Clump genes based on their correlation
+###
 
-AllGene_intersect_weighted<-AllGene_intersect
+sink(file = paste(opt$output,'.log',sep=''), append = T)
+cat('Clumping features...')
+sink()
 
-for(j in 3:dim(AllGene_intersect)[2]){
-AllGene_intersect_weighted[,j]<-scale(AllGene_intersect[,j])*TWAS_intersect$TWAS.Z[TWAS_intersect$FILE == names(AllGene_intersect[j])]
+TWAS_clumped<-NULL
+for(j in unique(TWAS_intersect$Block)){
+	if(sum(TWAS_intersect$Block == j) == 1){
+		TWAS_clumped<-rbind(TWAS_clumped,TWAS_intersect[TWAS_intersect$Block == j,])
+	} else {
+		TWAS_Block<-TWAS_intersect[TWAS_intersect$Block == j,]
+		TWAS_Block<-TWAS_Block[order(TWAS_Block$TWAS.P),]
+		cor_block<-cor(as.matrix(AllGene_intersect[,TWAS_Block$FILE]), method='pearson')
+
+		i<-1
+		while(i){
+		  # Subset rows within range of variable i
+		  TWAS_Block_i<-TWAS_Block[TWAS_Block$P0 < (TWAS_Block$P1[i] + opt$cor_window) & TWAS_Block$P1 > (TWAS_Block$P0[i] - opt$cor_window),]
+		  cor_block_i<-cor_block[(dimnames(cor_block)[[1]] %in% TWAS_Block_i$FILE),(dimnames(cor_block)[[2]] %in% TWAS_Block_i$FILE)]
+		  
+		  # If no nearby features (after previous pruning) skip
+		  if(dim(TWAS_Block_i)[1] == 1){
+			i<-i+1
+		  	next()
+		  }
+		  
+		  # Skip if no variables in range have correlation greater than threshold
+		  if(!(max(abs(cor_block_i[-1,1])) > sqrt(opt$clump_thresh))){
+		    i<-i+1
+				if(i > dim(TWAS_Block)[1]){
+					break()
+				}
+		    next()
+		  }
+		  
+		  # Create list of variables that correlate to highly with variable i
+		  exclude<-dimnames(cor_block_i)[[1]][-1][abs(cor_block_i[-1,1]) > sqrt(opt$clump_thresh)]
+		  
+		  # Remove these correlated variables
+		  TWAS_Block<-TWAS_Block[!(TWAS_Block$FILE %in% exclude),]
+		  cor_block<-cor_block[!(dimnames(cor_block)[[1]] %in% exclude),!(dimnames(cor_block)[[2]] %in% exclude)]
+
+			i<-i+1
+
+			# Break if we have gone through all variables.
+			if(i > dim(TWAS_Block)[1]){
+				break()
+			}
+		}	
+	TWAS_clumped<-rbind(TWAS_clumped,TWAS_Block)
+	}
 }
 
+sink(file = paste(opt$output,'.log',sep=''), append = T)
+cat('Done!\n')
+sink()
+
+# Save list of clumped TWAS results with TWAS.Z and TWAS.P values
+fwrite(TWAS_clumped[,c('FILE','TWAS.Z','TWAS.P')], paste0(opt$output,'.score'), sep=' ')
+
+# Update NGenes_table after clumping
+for(i in 1:length(opt$pTs)){
+	NGenes_table$NGenes_post_clump[i]<-sum(TWAS_clumped$TWAS.P <= opt$pTs[i])
+}
+
+write.table(NGenes_table, paste(opt$output,'.NFeat',sep=''), row.names=F, quote=F, sep='\t')
+
+########
+# Weight the gene expression in each individuals by TWAS.Z, scaling predicted expression in advance
+########
+
+IDs<-AllGene_intersect[,1:2]
+TWAS_intersect<-TWAS_intersect[match(names(AllGene_intersect)[-1:-2], TWAS_intersect$FILE),]
+AllGene_intersect_noID<-data.table(scale(AllGene_intersect[,-1:-2]))
+AllGene_intersect_noID<-t(t(AllGene_intersect_noID) * TWAS_intersect$TWAS.Z)
+AllGene_intersect<-cbind(IDs,AllGene_intersect_noID)
+rm(AllGene_intersect_noID)
+
 ##################
-# For each pT, prune genes, and then calculate GeRS.
+# For each pT calculate GeRS.
 ##################
 
 GeneX_Risk<-data.frame(	FID=AllGene_intersect$FID,
 						IID=AllGene_intersect$IID)
 
-for(i in 1:sum(NGenes_table$pT > min(TWAS_intersect$TWAS.P))){
-TWAS_intersect_pT<-TWAS_intersect[TWAS_intersect$TWAS.P < opt$pT[i],]
-
-########
-# Prune genes
-########
-# Calculate correlation matrix for each block and remove genes that have any correlation value greater than opt$prune_thresh.
-TWAS_intersect_pT_pruned_all<-NULL
-for(j in unique(TWAS_intersect_pT$Block)){
-	if(sum(TWAS_intersect_pT$Block == j) == 1){
-		TWAS_intersect_pT_pruned<-TWAS_intersect_pT[TWAS_intersect_pT$Block == j,]
-	} else {
-		cor_block<-cor(as.matrix(AllGene_intersect[(names(AllGene_intersect) %in% TWAS_intersect_pT$FILE[TWAS_intersect_pT$Block == j])]), method='pearson')
-		cor_block_pruned<-cor_block
-		j<-1
-		while(TRUE){
-			tmp<-cor_block_pruned
-			tmp[!lower.tri(tmp)] <- 0
-			if(max(tmp) < sqrt(opt$prune_thresh)){
-				break()
-			}
-
-			if(sum(abs(tmp[,j]) > sqrt(opt$prune_thresh)) > 0){
-					cor_block_pruned<-cor_block_pruned[-j,-j]
-					j<-1
-			} else {
-			j<-j+1
-			}
-		}
-		TWAS_intersect_pT_pruned<-TWAS_intersect_pT[(TWAS_intersect_pT$FILE %in% colnames(cor_block_pruned)),]
-	}
-
-	TWAS_intersect_pT_pruned_all<-rbind(TWAS_intersect_pT_pruned_all, TWAS_intersect_pT_pruned)
-}
-
-n_prune<-sum(!(TWAS_intersect_pT$FILE %in% TWAS_intersect_pT_pruned_all$FILE))
-
-AllGene_intersect_pT_pruned_weighted<-AllGene_intersect_weighted[c('FID','IID',names(AllGene_intersect)[(names(AllGene_intersect) %in% TWAS_intersect_pT_pruned_all$FILE)])]
-
-NGenes_table$NGenes_post_prune[i]<-dim(TWAS_intersect_pT_pruned_all)[1]
-
-# Sum effect size weighted gene expression values. 1e6 only has one gene in it so don't use row sums.
-	SCORE<-data.frame(SCORE=rowSums(AllGene_intersect_pT_pruned_weighted[-1:-2]))
-	names(SCORE)<-paste('SCORE_pT_',as.character(opt$pTs[i]),sep='')
-	GeneX_Risk<-cbind(GeneX_Risk,SCORE)
-
-cat(i,'of',length(opt$pTs),'pTs complete\n')
-rm(AllGene_intersect_pT_pruned_weighted)
+for(i in 1:sum(NGenes_table$pT > min(TWAS_clumped$TWAS.P))){
+	tmp<-rowSums(AllGene_intersect[which(names(AllGene_intersect) %in% TWAS_clumped$FILE[TWAS_clumped$TWAS.P <= NGenes_table$pT[i]])])
+	GeneX_Risk<-cbind(GeneX_Risk,tmp)
+	names(GeneX_Risk)[2+i]<-paste0('SCORE_',NGenes_table$pT[i])
 }
 
 ########
@@ -232,12 +264,6 @@ rm(AllGene_intersect_pT_pruned_weighted)
 ########
 
 write.csv(GeneX_Risk, paste(opt$output,'-GeRS.csv',sep=''), row.names=F, quote=F)
-
-########
-# Save the gene expression risk scores
-########
-
-write.csv(NGenes_table, paste(opt$output,'-NGene_Table.csv',sep=''), row.names=F, quote=F)
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
