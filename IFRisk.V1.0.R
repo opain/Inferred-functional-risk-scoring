@@ -227,7 +227,7 @@ cat('Done!\n')
 sink()
 
 # Save list of clumped TWAS results with TWAS.Z and TWAS.P values
-fwrite(TWAS_clumped[,c('FILE','TWAS.Z','TWAS.P')], paste0(opt$output,'.score'), sep=' ')
+fwrite(TWAS_clumped[,c('FILE','PANEL','ID','TWAS.Z','TWAS.P')], paste0(opt$output,'.score'), sep=' ')
 
 # Update NGenes_table after clumping
 for(i in 1:length(opt$pTs)){
