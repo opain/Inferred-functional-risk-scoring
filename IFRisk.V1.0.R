@@ -103,7 +103,7 @@ for(i in 3:dim(AllGene)[2]){
 	var_all<-rbind(var_all,var)
 }
 
-AllGene<-AllGene[c(1,2,var_all$column[var_all$variance != 0])]
+AllGene<-AllGene[c(1,2,var_all$column[which(var_all$variance != 0)])]
 cat(length(var_all$column[var_all$variance == 0]),'features were removed due to zero variance.\n')
 
 # Find intersecting features.
@@ -113,6 +113,7 @@ cat(length(intersecting_genes), 'features are present in both twas_results and t
 
 AllGene_intersect<-AllGene[c('FID','IID',intersecting_genes)]
 TWAS_intersect<-TWAS[(TWAS$FILE %in% intersecting_genes),]
+TWAS_intersect<-TWAS_intersect[order(TWAS_intersect$CHR, TWAS_intersect$P0),]
 
 rm(AllGene)
 rm(TWAS)
