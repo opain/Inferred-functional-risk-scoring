@@ -22,18 +22,21 @@ make_option("--clump_mhc", action="store", default=T, type='logical',
 
 opt = parse_args(OptionParser(option_list=option_list))
 
-tmp<-sub('.*/','',opt$output)
-opt$output_dir<-sub(paste0(tmp,'*.'),'',opt$output)
+# Create output directory if it doesn't exist already
+if(dirname(opt$output) != '.'){
+	system(paste0('mkdir -p ',dirname(opt$output)))
+}
 
+# Check whether output file already exists, and if so stop
 if(file.exists(paste(opt$output,'-GeRS.csv',sep=''))){
 	cat('A file named',paste(opt$output,'-GeRS.csv',sep=''),'already exists.\n')
 	q()
 }
 
-system(paste0('mkdir -p ',opt$output_dir))
-
+# Create vector specfying p-value thresholds
 opt$pTs<- as.numeric(unlist(strsplit(opt$pTs,',')))
 
+# Create log file with parameters specified
 sink(file = paste(opt$output,'.log',sep=''), append = F)
 cat(
 '#################################################################
@@ -47,6 +50,8 @@ cat('Analysis started at',as.character(start.time),'\n')
 
 sink()
 sink("/dev/null")
+
+# Load required packages
 suppressMessages(library(data.table))
 
 ###########
@@ -226,8 +231,11 @@ sink(file = paste(opt$output,'.log',sep=''), append = T)
 cat('Done!\n')
 sink()
 
+# Subset columns
+TWAS_clumped<-TWAS_clumped[, names(TWAS_clumped) %in% c('FILE','PANEL','ID','TWAS.Z','TWAS.P')]
+
 # Save list of clumped TWAS results with TWAS.Z and TWAS.P values
-fwrite(TWAS_clumped[,c('FILE','PANEL','ID','TWAS.Z','TWAS.P')], paste0(opt$output,'.score'), sep=' ')
+fwrite(TWAS_clumped, paste0(opt$output,'.score'), sep=' ')
 
 # Update NGenes_table after clumping
 for(i in 1:length(opt$pTs)){
